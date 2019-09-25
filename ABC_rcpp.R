@@ -3,7 +3,7 @@ library(ggplot2)
 
 # source functions from cpp and R
 
-sourceCpp("~/Sc_Master/SelectedTopics/ABC_applied/CPPcode/model.cpp")
+sourceCpp("~/Sc_Master/SelectedTopics/ABC_applied/Rcpp/model.cpp")
 
 source("~/Sc_Master/SelectedTopics/ABC_applied/functions/processABCoutput.R")
 #source("~/Sc_Master/SelectedTopics/ABC_applied/functions/introplots.R")
@@ -16,13 +16,13 @@ source("~/Sc_Master/SelectedTopics/ABC_applied/functions/processABCoutput.R")
 
 directionalPersistance = 0.3 # runif(1, 0, 1)
 BasketSize = 15 # runif(1, 1, 20)
-Lazyness = 1.0 # runif(1,0,0.1)
-FoodRadius = 30 #runif(1,10,60)
+Lazyness = 1.5 # runif(1,0,0.1)
+FoodRadius = 50 #runif(1,10,60)
 
-fixparameters = c(directionalPersistanceBackway = 0.3, FlowerRichness = 5, TimeofReturn = 17, ConsistencyofReturn = 0.3, TimeofLeaving = 5.5)
+fixparameters = c(directionalPersistanceBackway = 0.3, FlowerRichness = 5, TimeofReturn = 17, TimeofLeaving = 5, ConsistencyofReturn = 0.3)
 startvalues = c(0,0,0)
 days = 0
-tsteps = 600
+tsteps = 500
 
 data = movmod(paramsVar=c(directionalPersistance, BasketSize, Lazyness, FoodRadius), paramsFix = fixparameters , startvalues = startvalues, steps=tsteps, days = days, pie=pi)
 
