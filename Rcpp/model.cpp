@@ -89,6 +89,10 @@ DataFrame movmod(NumericVector paramsVar, NumericVector paramsFix, NumericVector
               out_x(0) = x;
               out_y(0) = y;
 				
+				//Time of getting up today.
+			  double pT;
+			  pT = TimeofLeaving+fabs(R::rnorm(Lazyness, 0.3));
+			  
               for(int i=0; i < steps+1; ++i) {
 				  countingDwarf++;
 				  dd(countingDwarf-1) = day;
@@ -98,35 +102,38 @@ DataFrame movmod(NumericVector paramsVar, NumericVector paramsFix, NumericVector
 				  tt(countingDwarf-1) = tsteps(i);
 				  returntimes(countingDwarf-1) = returntime;
 				  
+				  //if get up time is reached, activity status is changed to collecting
+				  if(pT < tsteps(i)){
+					activity = 1;
+					}
+					
+				// if sun has already set, the animal stays in the camp and goes into resting mode.
+				  if((sunlight(i) == 0) & (x == 0) & (y == 0)){
+					activity = 0;
+					backway = 0;
+					movemode(countingDwarf-1) = 0;}
+					
 				  if(activity == 1){
 					  // set animal movement to collecting mode
 					  movemode(countingDwarf-1) = 1;
 					  
 					  // between a certain radius from the camp and the further away the animal is, the higher is the probability to find food.
 					  disttocamp = sqrt(x*x + y*y);
-					  probofsuccess = (1 - foodRadius/(disttocamp+1));
-					  if (probofsuccess < 0) {probofsuccess = 0;}
+					  probofsuccess = (disttocamp / foodRadius - 0.1);
+					  if (probofsuccess > 1) {probofsuccess = 1;} //
 					  
 					  // check if the animal finds food in this step and modify movementlength as a function of food.
 					  foodfound = R::rbinom(1, probofsuccess);
 					  if (foodfound == 1){
-						food = R::rnorm(FlowerRichness, 0.5); // R::rlnorm(meanlog=0, sdlog=1)
-						while(food < 0){
-							food = R::rnorm(FlowerRichness, 0.5);
-						}
-						meanSteplength = 10*(1/(food+0.1));
-						movementLength = R::rnorm(meanSteplength, 1);
-						while (movementLength < 0){
-							movementLength = R::rnorm(meanSteplength, 1);
-						}
-						// if no food found, meansteplength is 10 times larger than  if found was found.
+						food = fabs(R::rlnorm(0, 0.7));
+						meanSteplength = 5;
+						movementLength = fabs(R::rnorm(meanSteplength, 1));
+						
+					// if no food found, meansteplength is two times larger than  if found was found.
 					  } else {
 						  food = 0;
-						  meanSteplength = 1*(1/(food+0.1));
-						  movementLength = R::rnorm(meanSteplength, 1);
-						  while (movementLength < 0){
-							  movementLength = R::rnorm(meanSteplength, 1);
-						  }
+						  meanSteplength = 10;
+						  movementLength = fabs(R::rnorm(meanSteplength, 1));
 					  }
 					  
 					  //add food to basket if still space in the basket
@@ -141,16 +148,15 @@ DataFrame movmod(NumericVector paramsVar, NumericVector paramsFix, NumericVector
 					  homesickness = pFB+pS;
 					  if(homesickness > 1){homesickness = 1;}
 					  
-					  // 
+					  // Sample if animal starts backway movement
 					  if(backway == 0){
 					  backway = R::rbinom(1,homesickness);}
 					  else {backway = 1;}
 					  
 					  if(backway == 1){
 						  movemode(countingDwarf-1) = 2;
-						  
-						  // move animal towards basecamp if outside a certain diameter
-						  if((abs(x) > 5) | (abs(y) > 5)){
+						  // move animal towards basecamp if outside a radius of 5 
+						  if((fabs(x) > 5) | (fabs(y) > 5)){
 						    persOR = R::rnorm(0, directionalPersistanceBackway);
 							  direction = atan2(y, x) + pie + persOR;
 							  length = 2*R::rexp(movementLength); //animal moves faster on the backway.
@@ -165,14 +171,8 @@ DataFrame movmod(NumericVector paramsVar, NumericVector paramsFix, NumericVector
 							  out_y(i+1) = y;
 							  foodBasket(i+1) = 0;
 							  backway = 0;
-							  returntime++;
-							  // if sun has already set, the animal stays in the camp and goes into resting mode.
-							  if(sunlight(i) == 0){
-							    activity = 0;
-							    backway = 0;
-							    movemode(countingDwarf-1) = 0;}
-							  }
-						// if the animal is not on the backway, move in collecting mode.
+							  returntime++;}
+						// if the animal is not on the backway, move as in collecting mode.
 					  } else {persOR = R::rnorm(0, directionalPersistance);
 					    direction = direction + persOR;
 					    length = R::rexp(movementLength);
@@ -180,20 +180,14 @@ DataFrame movmod(NumericVector paramsVar, NumericVector paramsFix, NumericVector
 						out_x(i+1) = x;
 						y = y + sin(direction)*length;
 						out_y(i+1) = y;}
-				  // if animal is not active, sample acitvity as a function of time and Lazyness.
+				  // if animal is not active, keep location and status
 				  } else {
-					// sample if animal is leaving the camp dependent on favorite get up time and lag.
-					double pT;
-					pT = TimeofLeaving-tsteps(i)+Lazyness;
-					//rcpp_rcout(pT);
-					if(pT<1.5){
-					//pT = R::dnorm(tsteps(i), TimeofLeaving, Lazyness, 0);
-					activity = 1;//R::rbinom(1, pT);
-					}
+					
 					movemode(countingDwarf-1) = 0;
 					out_x(i+1) = x;
 					out_y(i+1) = y;
 					foodBasket(i+1)= 0 ;}
+					
 			  }
 			  }
 			DataFrame df_out = DataFrame::create(Named("time") = tt, Named("day")=dd, Named("x")=xx, Named("y")=yy, Named("movementmode")=movemode, Named("foodBasket")=fb, Named("Returntimes")=returntimes);
@@ -235,6 +229,7 @@ NumericVector summaryStatistics(NumericMatrix data){
 	NumericVector day = data(_,1);
 	NumericVector xobs = data(_,2);
 	NumericVector yobs = data(_,3);
+	NumericVector mode = data(_,4);
 	
 	double meandisplacement;
 	double sddisplacement;
@@ -244,6 +239,8 @@ NumericVector summaryStatistics(NumericMatrix data){
 	double sdturning;
 	double meanturning3;
 	double sdturning3;
+	double meanturningCollection;
+	double sdturningCollection;
 	double xquantile50;
 	double xquantile90;
 	double meandayreturns;
@@ -251,6 +248,8 @@ NumericVector summaryStatistics(NumericMatrix data){
 	double mediandisttocamp;
 	double maxdisttocamp;
 	double displacementbydistance;
+	double meandailydistance;
+	double meantimeofleaving;
 	
 	// stepwise displacement 
 	meandisplacement = mean(sqrt(diff(xobs)*diff(xobs)+diff(yobs)*diff(yobs)));
@@ -282,6 +281,8 @@ NumericVector summaryStatistics(NumericMatrix data){
 	meanturning3 = mean(abs(diff(meanturningV3)))/3;
 	sdturning3 = sd(abs(diff(meanturningV3)))/3;
 	
+	// turning angle in collection mode
+	
 	//Quantiles of distance to basecamp
 	xquantile50 = Quantiles(xobs, 0.5);
 	xquantile90 = Quantiles(xobs, 0.9);
@@ -297,6 +298,13 @@ NumericVector summaryStatistics(NumericMatrix data){
 			returns++;}
 	}
 	meandayreturns = returns/max(day);
+	
+		// complete daily walking distance
+	double distance = 0;
+	for(int i=0; i < l2; ++i){
+		distance = distance + sqrt(xlags(i)*xlags(i)+ylags(i)*ylags(i));
+	}
+	meandailydistance = distance/max(day);
 	
 	//mean distance to camp
 	NumericVector disttocamp(l2);
@@ -322,8 +330,21 @@ NumericVector summaryStatistics(NumericMatrix data){
 	}
 	displacementbydistance = mean(na_omit(meandisplatdist));
 	
+	// leaving time in the morning
+	NumericVector xlags2 = diffLag(xobs, 2, true);
+	NumericVector ylags2 = diffLag(yobs, 2, true);
+	NumericVector xlags20 = diffLag(xobs, 20, true);
+	NumericVector ylags20 = diffLag(yobs, 20, true);
+	double leavingtime = 0;
 	
-	NumericVector SumStats = NumericVector::create(Named("meandisplacement")= meandisplacement, Named("sddisplacement") = sddisplacement, Named("meandisplacement3") = meandisplacement3, Named("sddisplacement3") = sddisplacement3, Named("meanturning") = meanturning, Named("sdturning") = sdturning,Named("meanturning3") = meanturning3, Named("sdturning3") = sdturning3, Named("xquantile50") = xquantile50, Named("xquantile90") = xquantile90, Named("meandayreturns") = meandayreturns, Named("meandisttocamp") = meandisttocamp,Named("mediandisttocamp")=mediandisttocamp, Named("maxdisttocamp") = maxdisttocamp, Named("displacementbydistance") = displacementbydistance);
+	for (int i = 0; i < l2-1; ++i){
+		if ((xobs(i) == xlags2(i)) & (yobs(i) == ylags2(i)) & (xobs(i) == xlags20(i)) & (yobs(i) == ylags20(i)) & ((xobs(i) != 0) & (yobs(i) != 0 ))){
+			leavingtime = leavingtime + time(i);
+		}
+	}
+	meantimeofleaving = leavingtime/max(day);
+	
+	NumericVector SumStats = NumericVector::create(Named("meandisplacement")= meandisplacement, Named("sddisplacement") = sddisplacement, Named("meandisplacement3") = meandisplacement3, Named("sddisplacement3") = sddisplacement3, Named("meanturning") = meanturning, Named("sdturning") = sdturning,Named("meanturning3") = meanturning3, Named("sdturning3") = sdturning3, Named("xquantile50") = xquantile50, Named("xquantile90") = xquantile90, Named("meandayreturns") = meandayreturns, Named("meandisttocamp") = meandisttocamp,Named("mediandisttocamp")=mediandisttocamp, Named("maxdisttocamp") = maxdisttocamp, Named("displacementbydistance") = displacementbydistance, Named("meanleavingtime") = meantimeofleaving, Named("meandailydistance") = meandailydistance);
 	return SumStats;
 }
 
